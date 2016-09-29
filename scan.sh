@@ -13,6 +13,6 @@ airodump-ng -w $DUMP_DIRECTORY/psk wlan1mon
 airmon-ng stop wlan1mon
 
 # We now backup the files and clean the folder
-tar czvf $(date "+%Y.%m.%d-%H.%M.%S").tar.gz $DUMP_DIRECTORY
+tar czvf wifidump-$(date "+%Y.%m.%d-%H.%M.%S").tar.gz $DUMP_DIRECTORY
 rm -rf $DUMP_DIRECTORY
 

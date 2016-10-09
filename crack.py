@@ -8,7 +8,7 @@ import time
 
 
 DICTIONARY_PATH = "/root/dictionaries"
-NB_CPU_USED = 2
+CRACKED_DIR = "/root/cracked"
 
 
 def list_files_in_path(path_to_list):
@@ -33,23 +33,39 @@ def run_cmd(cmd):
         process.wait()
 
 
-def build_aircrack_cmd(dictionary_path, bssid, cap_file_path, nb_cpu):
+def build_aircrack_cmd(bssid, cap_file_path, nb_cpu, dictionary_path=None):
     timestr = time.strftime("%Y%m%d-%H%M%S")
-    return [
-        'aircrack-ng',
-        '-a', '2',
-        '-p', str(nb_cpu),
-        '-w', dictionary_path,
-        '-l', "password-" + timestr + ".txt",
-        '-b', bssid,
-        cap_file_path
-    ]
+    if dictionary_path is not None:
+        return [
+            'aircrack-ng',
+            '-a', '2',
+            '-p', str(nb_cpu),
+            '-w', dictionary_path,
+            '-l', CRACKED_DIR + "/" + "password-" + timestr + ".txt",
+            '-b', bssid,
+            cap_file_path
+        ]
+    else:
+        return [
+            'crunch',
+            '2', '8',
+            '-f', '/usr/share/crunch/charset.lst', 'mixalpha-numeric-all-space',
+            '|',
+            'aircrack-ng',
+            '-a', '2',
+            '-p', str(nb_cpu),
+            '-w', '-',
+            '-l', CRACKED_DIR + "/" + "password-" + timestr + ".txt",
+            '-b', bssid,
+            cap_file_path
+        ]
 
 
 def usage():
     print("""
           Usage:
           -h or --help: this help
+          -d or --dictionary: use dictionary attack
           -b or --bssid: the BSSID of the wifi network to crack
           -c or --capfile: the path of the *.cap file containing the handshakes to be used.
           """)
@@ -62,9 +78,11 @@ def error(msg):
 def check_cmdline_parameters(parameters):
     flag = True
     error_msg = ""
+    # We check in case capfile is present that it is a real file
     if "capfile" in parameters and not path.isfile(parameters["capfile"]):
         flag = False
         error_msg = "CAP file: \"{}\" is not a valid file or does not exist!".format(parameters["capfile"])
+    # We ensure mandatory parameters are set on the command line
     if "capfile" not in parameters or "bssid" not in parameters:
         flag = False
         error_msg = "Both BSSID and cap file must be specified."
@@ -73,7 +91,7 @@ def check_cmdline_parameters(parameters):
 
 if __name__ == "__main__":
     try:
-        opts, args = getopt(argv[1:], "hb:c:", ["help", "bssid=", "capfile="])
+        opts, args = getopt(argv[1:], "hdb:c:", ["help", "bssid=", "capfile="])
     except GetoptError as err:
         print(str(err))
         exit(1)
@@ -93,6 +111,8 @@ if __name__ == "__main__":
                 parameters["bssid"] = arg
             elif opt in ("-c", "--capfile"):
                 parameters["capfile"] = arg
+            elif opt in ("-d", "--dictionary"):
+                parameters["dictionary"] = True
             else:
                 assert False, "Unhandled option!"
 
@@ -102,12 +122,21 @@ if __name__ == "__main__":
             error(error_msg)
             exit(2)
 
-        for dictionary in list_files_in_path(DICTIONARY_PATH):
+        if "dictionary" in parameters:
+            for dictionary in list_files_in_path(DICTIONARY_PATH):
+                cmd = build_aircrack_cmd(
+                    bssid=parameters["bssid"],
+                    cap_file_path=parameters["capfile"],
+                    nb_cpu=2,
+                    dictionary_path=dictionary
+                )
+                print("Running command: {}".format(" ".join(cmd)))
+                run_cmd(cmd)
+        else:
             cmd = build_aircrack_cmd(
-                dictionary,
-                parameters["bssid"],
-                parameters["capfile"],
-                NB_CPU_USED
+                bssid=parameters["bssid"],
+                cap_file_path=parameters["capfile"],
+                nb_cpu=1
             )
             print("Running command: {}".format(" ".join(cmd)))
             run_cmd(cmd)

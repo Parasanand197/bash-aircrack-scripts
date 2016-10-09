@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 
 from os import scandir, path
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, DEVNULL
 from getopt import getopt, GetoptError
 from sys import argv, exit
+import time
+
+
+DICTIONARY_PATH = "/root/dictionaries"
+NB_CPU_USED = 2
 
 
 def list_files_in_path(path_to_list):
@@ -15,24 +20,29 @@ def list_files_in_path(path_to_list):
 
 
 def run_cmd_with_realtime_output(cmd):
-    process = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-    while True:
-        line = process.stdout.readline().rstrip()
-        if not line:
-            break
-        yield line
+    with Popen(cmd, stdout=PIPE, stderr=PIPE) as process:
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+            yield line.decode("utf-8").replace("\n", "")
 
 
-def build_aircrack_cmd(dictionary_path, bssid, cap_file_path, pwd_file_path):
+def run_cmd(cmd):
+    with Popen(cmd, stdout=DEVNULL, stderr=DEVNULL) as process:
+        process.wait()
+
+
+def build_aircrack_cmd(dictionary_path, bssid, cap_file_path, nb_cpu):
+    timestr = time.strftime("%Y%m%d-%H%M%S")
     return [
         'aircrack-ng',
-        '-w',
-        dictionary_path,
-        '-b',
-        bssid,
-        '-l',
-        pwd_file_path,
-        cap_file_path,
+        '-a', '2',
+        '-p', str(nb_cpu),
+        '-w', dictionary_path,
+        '-l', "password-" + timestr + ".txt",
+        '-b', bssid,
+        cap_file_path
     ]
 
 
@@ -55,16 +65,13 @@ def check_cmdline_parameters(parameters):
     if "capfile" in parameters and not path.isfile(parameters["capfile"]):
         flag = False
         error_msg = "CAP file: \"{}\" is not a valid file or does not exist!".format(parameters["capfile"])
+    if "capfile" not in parameters or "bssid" not in parameters:
+        flag = False
+        error_msg = "Both BSSID and cap file must be specified."
     return flag, error_msg
 
 
-DICTIONARY_PATH = "/root/dictionaries/custom"
-
 if __name__ == "__main__":
-    #    dictionary_files = list_files_in_path(DICTIONARY_PATH)
-    #    print(dictionary_files)
-    #    for output in run_cmd_with_realtime_output(['htop']):
-    #        print(output)
     try:
         opts, args = getopt(argv[1:], "hb:c:", ["help", "bssid=", "capfile="])
     except GetoptError as err:
@@ -96,4 +103,11 @@ if __name__ == "__main__":
             exit(2)
 
         for dictionary in list_files_in_path(DICTIONARY_PATH):
-            print(dictionary)
+            cmd = build_aircrack_cmd(
+                dictionary,
+                parameters["bssid"],
+                parameters["capfile"],
+                NB_CPU_USED
+            )
+            print("Running command: {}".format(" ".join(cmd)))
+            run_cmd(cmd)
